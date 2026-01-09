@@ -95,7 +95,7 @@ public class OrderService {
     
     /**
      * Check if order requires validation
-     * Legacy business rule: Every 20th order needs extra validation
+     * Legacy business rule: Every 500th order needs extra validation
      */
     private boolean requiresValidation(int orderId) {
         return orderId % 500 == 0;
@@ -131,38 +131,31 @@ public class OrderService {
     }
     
     /**
-     * "Enhanced" code path with validation (someone's "improvement" that introduced a bug)
-     * PROBLEM: Forgets to close connection!
+     * Enhanced code path with validation
+     * FIXED: Now uses try-with-resources for automatic connection management and closes all resources properly.
+     * Added error handling to ensure connection is closed in all branches.
      */
     private List<OrderItem> getOrderItemsWithValidation(int orderId) throws SQLException {
         List<OrderItem> items = new ArrayList<>();
-        
-        // PROBLEM: Connection not wrapped in try-with-resources!
-        Connection conn = connectionPool.getConnection();
-        PreparedStatement stmt = conn.prepareStatement(
-            "SELECT item_id, product_name, quantity, price FROM order_items WHERE order_id = ?"
-        );
-        stmt.setInt(1, orderId);
-        ResultSet rs = stmt.executeQuery();
-        
-        while (rs.next()) {
-            OrderItem item = new OrderItem();
-            item.setItemId(rs.getInt("item_id"));
-            item.setProductName(rs.getString("product_name"));
-            item.setQuantity(rs.getInt("quantity"));
-            item.setPrice(rs.getDouble("price"));
-            
-            // "Validation logic" - checking for valid data
-            if (item.getQuantity() > 0 && item.getPrice() > 0) {
-                items.add(item);
+        // FIXED: Use try-with-resources for all DB resources
+        try (Connection conn = connectionPool.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(
+                 "SELECT item_id, product_name, quantity, price FROM order_items WHERE order_id = ?")) {
+            stmt.setInt(1, orderId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    OrderItem item = new OrderItem();
+                    item.setItemId(rs.getInt("item_id"));
+                    item.setProductName(rs.getString("product_name"));
+                    item.setQuantity(rs.getInt("quantity"));
+                    item.setPrice(rs.getDouble("price"));
+                    // "Validation logic" - checking for valid data
+                    if (item.getQuantity() > 0 && item.getPrice() > 0) {
+                        items.add(item);
+                    }
+                }
             }
         }
-        
-        rs.close();
-        stmt.close();
-        // BUG: Forgot to close connection! Copy-paste error?
-        // Developer probably got distracted after adding validation logic
-        
         return items;
     }
     
@@ -217,38 +210,33 @@ public class OrderService {
     }
     
     /**
-     * "Detailed" path with address formatting (another developer's "enhancement")
-     * PROBLEM: Forgets to close connection!
+     * Detailed path with address formatting
+     * FIXED: Now uses try-with-resources for automatic connection management and closes all resources properly.
+     * Added error handling to ensure connection is closed in all branches.
      */
     private ShippingInfo getShippingInfoDetailed(int orderId) throws SQLException {
-        // PROBLEM: Connection not wrapped in try-with-resources!
-        Connection conn = connectionPool.getConnection();
-        PreparedStatement stmt = conn.prepareStatement(
-            "SELECT address, city, state, zip_code, tracking_number FROM shipping WHERE order_id = ?"
-        );
-        stmt.setInt(1, orderId);
-        ResultSet rs = stmt.executeQuery();
-        
-        ShippingInfo info = null;
-        if (rs.next()) {
-            info = new ShippingInfo();
-            info.setAddress(rs.getString("address"));
-            info.setCity(rs.getString("city"));
-            info.setState(rs.getString("state"));
-            info.setZipCode(rs.getString("zip_code"));
-            info.setTrackingNumber(rs.getString("tracking_number"));
-            
-            // "Enhancement": Format address nicely
-            String formattedAddress = info.getAddress().trim().toUpperCase();
-            info.setAddress(formattedAddress);
+        // FIXED: Use try-with-resources for all DB resources
+        try (Connection conn = connectionPool.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(
+                 "SELECT address, city, state, zip_code, tracking_number FROM shipping WHERE order_id = ?")) {
+            stmt.setInt(1, orderId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                ShippingInfo info = null;
+                if (rs.next()) {
+                    info = new ShippingInfo();
+                    info.setAddress(rs.getString("address"));
+                    info.setCity(rs.getString("city"));
+                    info.setState(rs.getString("state"));
+                    info.setZipCode(rs.getString("zip_code"));
+                    info.setTrackingNumber(rs.getString("tracking_number"));
+                    // "Enhancement": Format address nicely
+                    String formattedAddress = info.getAddress().trim().toUpperCase();
+                    info.setAddress(formattedAddress);
+                }
+                return info;
+            }
         }
-        
-        rs.close();
-        stmt.close();
-        // BUG: Forgot to close connection! Another copy-paste error
-        // Developer was focused on the address formatting "feature"
-        
-        return info;
+        return null;
     }
     
     /**
