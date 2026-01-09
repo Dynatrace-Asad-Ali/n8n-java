@@ -1,0 +1,4 @@
+## v1.0.5-fixed
+- Fixed connection leak bugs in getOrderItemsWithValidation() and getShippingInfoDetailed() by always using try-with-resources.
+- Improved error handling and documentation.
+- All resource management now robust, even on rare code branches (orderId % 500 == 0 and orderId % 20 == 0).
