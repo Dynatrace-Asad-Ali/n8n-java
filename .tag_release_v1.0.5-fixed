@@ -1,0 +1,1 @@
+Fix connection leaks in getOrderItemsWithValidation and getShippingInfoDetailed; use try-with-resources, improve comments and error handling
